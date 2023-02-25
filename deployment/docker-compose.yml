@@ -1,0 +1,48 @@
+version: '3'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deployment/app.Dockerfile
+      args:
+        INSTALL_DEV: ${INSTALL_DEV:-false}
+    restart: on-failure
+    expose:
+      - 8000
+    env_file:
+      - .env
+    depends_on:
+      - db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - proxy
+      - default
+    labels:
+      - traefik.enable=True
+      - traefik.http.routers.ycomb-parser.rule=Host(`ycomb.example.com`)
+      - traefik.http.routers.ycomb-parser.tls=True
+      - traefik.docker.network=proxy
+      - traefik.http.middlewares.redirect-https.redirectScheme.scheme=https
+      - traefik.http.middlewares.redirect-https.redirectScheme.permanent=true
+      - traefik.http.routers.ycomb-parser-http.rule=Host(`ycomb.example.com`)
+      - traefik.http.routers.ycomb-parser-http.entrypoints=web
+      - traefik.http.routers.ycomb-parser-http.middlewares=redirect-https
+      - traefik.http.routers.ycomb-parser-http.service=app-deployment
+
+  db:
+    image: postgres:14-alpine
+    env_file:
+      - .env
+
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data:cached
+
+
+networks:
+    proxy:
+      external: true
